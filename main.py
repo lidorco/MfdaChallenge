@@ -1,5 +1,5 @@
 from itertools import groupby
-from functools import partial
+from functools import partial, reduce
 from time import time
 import os
 
@@ -45,7 +45,7 @@ TRAIN_USER_COUNT = 10
 
 ## Load Datasets
 
-challengeToFill = pd.read_csv('challengeToFill.csv')
+challengeToFill = pd.read_csv('data/partial_labels.csv')
 challengeToFill.head()
 
 #  This cell loads the data for each user to dictionaries
@@ -62,9 +62,9 @@ def split_to_chunks(user_commands_list):
 
 
 commands = pd.Series()
-for user in os.listdir('FraudedRawData'):
+for user in os.listdir('data/FraudedRawData'):
     if user.startswith('User'):
-        with open(os.path.join('FraudedRawData',user),'rb') as f:
+        with open(os.path.join('data/FraudedRawData',user),'rb') as f:
                 commands[user] = split_to_chunks([r.strip() for r in f.readlines()])
 
 
@@ -116,21 +116,65 @@ plt.show() #show the histogram
 
 common_commands = known_commands.value_counts().nlargest(50).index.tolist()
 
-for user in commands.keys():
+for user in commands.keys(): #comment to make run faster with less featurers
     for i, chunk in enumerate(commands[user]):
         for com in common_commands:
-            try:
-                df.loc[(user, i), com] = df.loc[(user, i), com] + 1
-            except KeyError:
-                df.loc[(user, i), com] = 0
+            df.loc[(user, i), com] = chunk.count(com)
 
 df.fillna(0, inplace=True)  # in case a command did not appear in the chunk, the cell will contain null, fill these nulls with zeros
 df.head()
 
-pass
+
 
 ### Usage of unknown commands:
 #### Number of appearances of unknown commands which where not appear in the benign chunks
 
+distinct_known_commands = set()
+for user in commands.keys():
+    for chunk in commands[user][:BENIGN]:
+        for command in chunk:
+            distinct_known_commands.add(command)
+
+# new feature - number of new commands in a chunk (new = did not appear in the first 50 chunks)
+for user in commands.keys():
+    for i, chunk in enumerate(commands[user]):
+        df.loc[(user, i), 'new_commands'] = len(set(chunk) - distinct_known_commands)
+        try:
+            df.loc[(user, i), 'new_commands_usage_count'] = reduce((lambda x,y:x+y),[chunk.count(new_command)for new_command in (set(chunk) - distinct_known_commands)] )
+        except TypeError :
+            df.loc[(user, i), 'new_commands_usage_count'] = 0
+
+df.loc[df['new_commands']>0,'new_commands'].hist()
 
 
+# Impersonators' commands
+# Number of appearances of commands used by impersonators
+
+for user in commands.keys():
+    for i, chunk in enumerate(commands[user]):
+        df.loc[(user, i), 'impersonator_unique_commands'] = len(set(chunk) & commands_only_impersonators_use)
+        df.loc[(user, i), 'impersonator_commands'] = len(set(chunk) & impersonators_commands_set)
+
+pass
+# Duplicate commands
+# Number of appearances of series of duplicate commands (for certain lengthes)
+# Based on the hypothesis that benign use is not characterized by long serieses of duplicate commands
+
+# look for series of long duplicates of commands:
+for user in commands.keys():
+    for i,chunk in enumerate(commands[user]):
+        # based on https://stackoverflow.com/questions/16733236/find-the-length-of-the-longest-consecutive-series-of-numbers?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
+        df.loc[(user, i), 'longest_duplicate_series'] = max(sum(1 for i in g) for k,g in groupby(chunk))
+        df.loc[(user, i), '>13_duplicates'] = sum(sum(1 for i in g)>=13 for k,g in groupby(chunk))
+        df.loc[(user, i), '>12_duplicates'] = sum(sum(1 for i in g)>=12 for k,g in groupby(chunk))
+        df.loc[(user, i), '>11_duplicates'] = sum(sum(1 for i in g)>=11 for k,g in groupby(chunk))
+        df.loc[(user, i), '>10_duplicates'] = sum(sum(1 for i in g)>=10 for k,g in groupby(chunk))
+        df.loc[(user, i), '>3_duplicates'] = sum(sum(1 for i in g)>=3 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>9_duplicates'] = sum(sum(1 for i in g)>=9 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>8_duplicates'] = sum(sum(1 for i in g)>=8 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>7_duplicates'] = sum(sum(1 for i in g)>=7 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>6_duplicates'] = sum(sum(1 for i in g)>=6 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>5_duplicates'] = sum(sum(1 for i in g)>=5 for k,g in groupby(chunk))
+    #     df.loc[(USER, i), '>4_duplicates'] = sum(sum(1 for i in g)>=4 for k,g in groupby(chunk))
+
+df.head()
