@@ -42,6 +42,12 @@ USER_COUNT = 40
 TRAIN_USER_COUNT = 10
 
 
+### What features to collect:
+ENABLE_IMPERSONATOR_COMMANDS = True
+ENABLE_NEW_COMMANDS = True
+ENABLE_COMMON_COMMANDS = True
+ENABLE_DUPLICATE_COMMANDS = True
+ENABLE_REPEATED_PATTERNS = True
 
 ## Load Datasets
 
@@ -116,10 +122,11 @@ plt.show() #show the histogram
 
 common_commands = known_commands.value_counts().nlargest(50).index.tolist()
 
-for user in commands.keys(): #comment to make run faster with less featurers
-    for i, chunk in enumerate(commands[user]):
-        for com in common_commands:
-            df.loc[(user, i), com] = chunk.count(com)
+if ENABLE_COMMON_COMMANDS:
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            for com in common_commands:
+                df.loc[(user, i), com] = chunk.count(com)
 
 df.fillna(0, inplace=True)  # in case a command did not appear in the chunk, the cell will contain null, fill these nulls with zeros
 df.head()
@@ -136,45 +143,102 @@ for user in commands.keys():
             distinct_known_commands.add(command)
 
 # new feature - number of new commands in a chunk (new = did not appear in the first 50 chunks)
-for user in commands.keys():
-    for i, chunk in enumerate(commands[user]):
-        df.loc[(user, i), 'new_commands'] = len(set(chunk) - distinct_known_commands)
-        try:
-            df.loc[(user, i), 'new_commands_usage_count'] = reduce((lambda x,y:x+y),[chunk.count(new_command)for new_command in (set(chunk) - distinct_known_commands)] )
-        except TypeError :
-            df.loc[(user, i), 'new_commands_usage_count'] = 0
+if ENABLE_NEW_COMMANDS:
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            df.loc[(user, i), 'new_commands'] = len(set(chunk) - distinct_known_commands)
+            try:
+                df.loc[(user, i), 'new_commands_usage_count'] = reduce((lambda x,y:x+y),[chunk.count(new_command)for new_command in (set(chunk) - distinct_known_commands)] )
+            except TypeError :
+                df.loc[(user, i), 'new_commands_usage_count'] = 0
 
-df.loc[df['new_commands']>0,'new_commands'].hist()
+    df.loc[df['new_commands']>0,'new_commands'].hist()
 
 
 # Impersonators' commands
 # Number of appearances of commands used by impersonators
+if ENABLE_IMPERSONATOR_COMMANDS:
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            df.loc[(user, i), 'impersonator_unique_commands'] = len(set(chunk) & commands_only_impersonators_use)
+            df.loc[(user, i), 'impersonator_commands'] = len(set(chunk) & impersonators_commands_set)
 
-for user in commands.keys():
-    for i, chunk in enumerate(commands[user]):
-        df.loc[(user, i), 'impersonator_unique_commands'] = len(set(chunk) & commands_only_impersonators_use)
-        df.loc[(user, i), 'impersonator_commands'] = len(set(chunk) & impersonators_commands_set)
 
-pass
 # Duplicate commands
 # Number of appearances of series of duplicate commands (for certain lengthes)
 # Based on the hypothesis that benign use is not characterized by long serieses of duplicate commands
 
+if ENABLE_DUPLICATE_COMMANDS:
 # look for series of long duplicates of commands:
-for user in commands.keys():
-    for i,chunk in enumerate(commands[user]):
-        # based on https://stackoverflow.com/questions/16733236/find-the-length-of-the-longest-consecutive-series-of-numbers?utm_medium=organic&utm_source=google_rich_qa&utm_campaign=google_rich_qa
-        df.loc[(user, i), 'longest_duplicate_series'] = max(sum(1 for i in g) for k,g in groupby(chunk))
-        df.loc[(user, i), '>13_duplicates'] = sum(sum(1 for i in g)>=13 for k,g in groupby(chunk))
-        df.loc[(user, i), '>12_duplicates'] = sum(sum(1 for i in g)>=12 for k,g in groupby(chunk))
-        df.loc[(user, i), '>11_duplicates'] = sum(sum(1 for i in g)>=11 for k,g in groupby(chunk))
-        df.loc[(user, i), '>10_duplicates'] = sum(sum(1 for i in g)>=10 for k,g in groupby(chunk))
-        df.loc[(user, i), '>3_duplicates'] = sum(sum(1 for i in g)>=3 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>9_duplicates'] = sum(sum(1 for i in g)>=9 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>8_duplicates'] = sum(sum(1 for i in g)>=8 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>7_duplicates'] = sum(sum(1 for i in g)>=7 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>6_duplicates'] = sum(sum(1 for i in g)>=6 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>5_duplicates'] = sum(sum(1 for i in g)>=5 for k,g in groupby(chunk))
-    #     df.loc[(USER, i), '>4_duplicates'] = sum(sum(1 for i in g)>=4 for k,g in groupby(chunk))
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            df.loc[(user, i), 'longest_duplicate_series'] = max(sum(1 for i in g) for k,g in groupby(chunk))
+            df.loc[(user, i), '>13_duplicates_count'] = sum(sum(1 for i in g)>=13 for k,g in groupby(chunk))
+            df.loc[(user, i), '>12_duplicates_count'] = sum(sum(1 for i in g)>=12 for k,g in groupby(chunk))
+            df.loc[(user, i), '>11_duplicates_count'] = sum(sum(1 for i in g)>=11 for k,g in groupby(chunk))
+            df.loc[(user, i), '>10_duplicates_count'] = sum(sum(1 for i in g)>=10 for k,g in groupby(chunk))
+            df.loc[(user, i), '>3_duplicates_count'] = sum(sum(1 for i in g)>=3 for k, g in groupby(chunk))
+        #     df.loc[(USER, i), '>9_duplicates_count'] = sum(sum(1 for i in g)>=9 for k,g in groupby(chunk))
+        #     df.loc[(USER, i), '>8_duplicates_count'] = sum(sum(1 for i in g)>=8 for k,g in groupby(chunk))
+        #     df.loc[(USER, i), '>7_duplicates_count'] = sum(sum(1 for i in g)>=7 for k,g in groupby(chunk))
+        #     df.loc[(USER, i), '>6_duplicates_count'] = sum(sum(1 for i in g)>=6 for k,g in groupby(chunk))
+        #     df.loc[(USER, i), '>5_duplicates_count'] = sum(sum(1 for i in g)>=5 for k,g in groupby(chunk))
+        #     df.loc[(USER, i), '>4_duplicates_count'] = sum(sum(1 for i in g)>=4 for k,g in groupby(chunk))
 
 df.head()
+
+
+### Repeated Patterns
+# Number of different command patterns that appeared at least 5 times (for each lengthes)
+# Based on the hypothesis that benign use is not characterized by many constant repeated patterns
+
+min_length = 3
+max_length = 7
+appearance_threshold = 5
+
+def sub_lists(L, min_length, max_length):
+    result_list = []
+    for current_list_length in range(min_length, max_length):
+        for start_index in range(len(L) - current_list_length + 1):
+            result_list.append(L[start_index:start_index+current_list_length])
+    return result_list
+
+if ENABLE_REPEATED_PATTERNS:
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            count = {l: 0 for l in range(min_length, max_length)}
+            L = chunk
+
+            for sub in sub_lists(L, min_length=min_length, max_length=max_length):
+                sub = list(sub)
+
+                occurances = [1 if L[i:i + len(sub)] == sub else 0 for i in
+                              range(len(L) - len(sub))]  # mark matches to the pattern
+
+                # Slice the list into slots, equal to the length of the pattern to avoid counting overlapping patters
+                occurances = sum(1 for i in range(0, len(occurances), len(sub)) if sum(occurances[i:i + len(sub)]) > 0)
+
+                if occurances > appearance_threshold:
+                    count[len(sub)] += 1  # occurances
+
+            for length, count_l in count.items():
+                df.loc[(user, i), 'Repeated_Patterns_%d' % length] = count_l
+
+    df.fillna(0, inplace=True)
+
+    # de-correlate the features, remove the patterns of length 4 from the count of patterns of length 3, etc.
+    df['Repeated_Patterns_3'] = df['Repeated_Patterns_3'] - df['Repeated_Patterns_4']
+    df['Repeated_Patterns_4'] = df['Repeated_Patterns_4'] - df['Repeated_Patterns_5']
+    df['Repeated_Patterns_5'] = df['Repeated_Patterns_5'] - df['Repeated_Patterns_6']
+    del df['Repeated_Patterns_4']
+    del df['Repeated_Patterns_6']
+
+df.to_csv('data/df_backup.csv', index=False)
+
+# Correlations between the features
+plt.figure(figsize=(15,10))
+sns.heatmap(df.corr())
+plt.xticks(rotation=85)
+plt.title('Correlations between the features')
+
+pass
