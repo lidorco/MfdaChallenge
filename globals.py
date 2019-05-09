@@ -1,5 +1,7 @@
+import datetime
 import os
 import pandas as pd
+import joblib
 
 from consts import *
 
@@ -60,3 +62,12 @@ def get_data_features():
     df = pd.DataFrame(columns=['User', 'Chunk']).set_index(['User', 'Chunk'])
     df = df.from_csv(r"data/df_backup.csv")
     return df
+
+
+def get_classifiers():
+    clfs = joblib.load(r"data/clfs.bin")
+    return clfs
+
+
+def get_now_string():
+    return "{}".format(datetime.datetime.now()).replace(" ", "_").replace(":", "-").rsplit(".")[0]

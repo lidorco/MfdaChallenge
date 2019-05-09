@@ -15,9 +15,9 @@ from sklearn.svm import SVC
 
 from sklearn.ensemble import IsolationForest
 
-from sklearn.feature_selection import SelectKBest
-from xgboost import XGBClassifier
 
+from xgboost import XGBClassifier
+from globals import get_now_string
 
 import pandas as pd
 import numpy as np
@@ -171,6 +171,5 @@ if ENABLE_REPEATED_PATTERNS:
     del df['Repeated_Patterns_4']
     del df['Repeated_Patterns_6']
 
-now_date = "{}".format(datetime.datetime.now()).replace(" ", "_").replace(":", "-").rsplit(".")[0]
 
-df.to_csv('data/df_backup_{}.csv'.format(now_date), index=True)
+df.to_csv('data/df_backup_{}.csv'.format(get_now_string()), index=True)

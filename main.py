@@ -1,13 +1,28 @@
+from time import time
+
+import joblib
 from imblearn.over_sampling import SMOTE
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+from sklearn.feature_selection import SelectKBest
 import numpy as np
+from functools import partial
+
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.linear_model import Ridge
+from sklearn.svm import SVC
+from xgboost import XGBClassifier
+
+from multiprocessing import Pool
 
 plt.style.use('ggplot')
 
-from consts import BENIGN, TRAIN_USER_COUNT, USER_COUNT, TOTAL_SEGMENTS
-from globals import commands, challengeToFill, get_data_features
+from consts import BENIGN, TRAIN_USER_COUNT, USER_COUNT, TOTAL_SEGMENTS, COMPUTE_CLASSIFIER
+from globals import commands, challengeToFill, get_data_features, get_classifiers, get_now_string
 
 
 df = get_data_features()
@@ -54,22 +69,129 @@ for user_i in range(TRAIN_USER_COUNT):
     normalize_df.loc[user, 'label'] = challengeToFill.loc[user].tolist()
 
 
-test_idx = pd.isnull(normalize_df['label'])
-train_idx = ~test_idx
-
-X_train = normalize_df[train_idx].copy()
-y_train = X_train.pop('label')
-X_test = normalize_df[test_idx].copy()
-y_test = X_test.pop('label')
-
-
-over_sampler = SMOTE()
-X, y_train = over_sampler.fit_sample(X_train, y_train)
-X_train = pd.DataFrame(X, columns=X_train.columns)
-
 
 normalize_df.hist(column='label')
 print( 'As can be noticed, the data is strongely inbalanced')
 
-pass
 
+
+train_idx = normalize_df.loc[normalize_df['label'].notnull()]
+test_idx = normalize_df[~normalize_df.index.isin(train_idx.index)]
+
+X_train = train_idx.copy()
+y_train = X_train.pop('label')
+X_test = test_idx.copy()
+y_test = X_test.pop('label')
+
+
+# More of Data Exploration:
+masqueraders = train_idx[y_train==1]
+benign = train_idx[y_train==0]
+
+for feature in normalize_df.columns:
+    plt.figure()
+    plt.title(feature)
+    plt.hist([benign[feature],masqueraders[feature]], color=['blue','red'], normed=True)
+
+normalize_df.head()
+
+skb = SelectKBest(k=30)
+skb.fit(X_train,y_train)
+cols = pd.Series(normalize_df.columns.tolist()[:-1])[skb.get_support()].tolist()
+print(cols)
+X_train = X_train[cols]
+X_test  = X_test[cols]
+
+
+
+## Fit classifiers
+
+def get_dataset_for_user(df, user, min_i=0, max_i=50):
+    idx = [('User%s'%user, i) for i in range(min_i, max_i)]
+    return df.loc[idx].copy()
+
+def get_preds_for_user(df, user, clfs, pairs, min_i=50, max_i=150):
+    df_to_pred = get_dataset_for_user(df, user, min_i=min_i, max_i=max_i)
+    preds = pd.DataFrame()
+    for pair in pairs:
+        if pair[0]==user:
+            preds[str(pair[1])] = clfs[pair].predict_proba(df_to_pred)[:,0]
+    return preds
+
+def fit_classifiers(df, classifier):
+    pairs = [(i,j) for i in range(40) for j in range(40) if i!=j]
+    clfs_paired = {}
+    for pair in pairs:
+        i,j = pair
+
+        i_df = get_dataset_for_user(df, i, min_i=0, max_i=BENIGN)
+        j_df = get_dataset_for_user(df, j, min_i=0, max_i=BENIGN)
+
+        i_df['label'] = 0
+        j_df['label'] = 1
+
+        train_df = i_df.append(j_df)
+        y = train_df.pop('label')
+        clfs_paired[pair] = classifier()
+        clfs_paired[pair].fit(train_df, y)
+    return clfs_paired
+
+
+
+seed = 40
+RandomForestClassifier42 = partial(RandomForestClassifier, n_estimators=30, n_jobs=-1, random_state=seed)
+RandomForestClassifier42.__name__ = 'RandomForest'
+SVC42 = partial(SVC, probability=True,random_state=seed)
+SVC42.__name__ = 'SVC'
+GradientBoostingClassifier42 = partial(GradientBoostingClassifier, random_state=seed)
+GradientBoostingClassifier42.__name__ = 'GradientBoostingClassifier'
+GaussianProcessClassifier42 = partial(GaussianProcessClassifier, random_state=seed)
+GaussianProcessClassifier42.__name__ = 'GaussianProcessClassifier'
+XGBClassifier42 = partial(XGBClassifier, seed=seed)
+XGBClassifier42.__name__ = 'XGBClassifier'
+AdaBoostClassifier42 = partial(AdaBoostClassifier, random_state=seed)
+AdaBoostClassifier42.__name__ = 'AdaBoostClassifier'
+XGBClassifier()
+
+classifiers = [SVC42,
+               AdaBoostClassifier42,
+               RandomForestClassifier42,
+               GradientBoostingClassifier42,
+               GaussianProcessClassifier42,
+               XGBClassifier]
+
+clfs = dict()
+
+if COMPUTE_CLASSIFIER:
+    for classifier in classifiers:
+        t1 = time()
+        print("Started", classifier.__name__, 'in', t1)
+        clfs[classifier.__name__] = fit_classifiers(normalize_df, classifier)
+        t2 = time()
+        print('Finished', classifier.__name__, 'in', t2, 'Total time', t2 - t1, 'sec.')
+    #joblib.dump(clfs, 'data/clfs_{}.bin'.format(get_now_string()))
+else:
+    clsf = get_classifiers() # TODO: make this work
+
+
+normalize_df.drop('label', axis=1, inplace=True)
+
+pairs = [(i, j) for i in range(40) for j in range(40) if i != j]
+classifications = pd.DataFrame([])
+for user in range(10):
+    tmp_df = pd.DataFrame([])
+    for classifier in clfs:
+        tmp_df[classifier] = get_preds_for_user(normalize_df, user, clfs[classifier], pairs, 50, 150).mean(1)
+    tmp_df['label'] = challengeToFill.T['User%d' % user].tolist()[50:]
+    classifications = classifications.append(tmp_df)
+
+
+normalize_df.head()
+
+classifications.head()
+
+label = classifications.pop('label')
+classifications = 1 - classifications
+
+
+pass
