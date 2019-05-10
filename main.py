@@ -16,7 +16,7 @@ from sklearn.ensemble import AdaBoostClassifier
 from sklearn.linear_model import Ridge
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-
+from sklearn import metrics
 from multiprocessing import Pool
 
 plt.style.use('ggplot')
@@ -25,6 +25,7 @@ from consts import BENIGN, TRAIN_USER_COUNT, USER_COUNT, TOTAL_SEGMENTS, COMPUTE
 from globals import commands, challengeToFill, get_data_features, get_classifiers, get_now_string
 
 
+#from build_features import df
 df = get_data_features()
 
 
@@ -193,5 +194,101 @@ classifications.head()
 label = classifications.pop('label')
 classifications = 1 - classifications
 
+
+regressor = Ridge()
+regressor.fit(classifications, label)
+
+
+
+fig, ax = plt.subplots(figsize=(10,5))
+plt.bar(
+    np.arange(len(regressor.coef_)),
+    regressor.coef_,
+    width=0.5
+)
+
+for i, v in enumerate(regressor.coef_):
+    if v < 0:
+        ax.text(i - 0.15, v - 0.05, '%0.3f'%v, fontweight='bold')
+    else:
+        ax.text(i - 0.15, v + 0.01, '%0.3f'%v, fontweight='bold')
+
+
+plt.xticks(np.arange(len(regressor.coef_)), classifications.columns)
+plt.xticks(rotation=25)
+plt.tight_layout()
+#plt.savefig('classifier_weights.png', dpi=500)
+
+#### Evaluation of the results
+
+
+classifications['predicted_label'] = regressor.predict(classifications)
+classifications.loc[classifications['predicted_label'] < 0, 'predicted_label'] = 0
+
+classifications['real_label'] = label
+
+
+fpr, tpr, thresholds = metrics.roc_curve(classifications['real_label'], classifications['predicted_label'])
+
+plt.figure()
+plt.plot(fpr, tpr)
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive rate')
+plt.plot([[0,0], [1,1]], '--')
+plt.legend(['ROC curve'])
+plt.title('AUC=%f'%metrics.auc(fpr, tpr))
+#plt.savefig('roc_curve.jpg', dpi=1000)
+
+
+# Find optimal Threshold (according to the given scoring scheme)
+scores = []
+for threshold in thresholds:
+    misDetection = len(classifications[(classifications['real_label']==1) & (classifications['predicted_label']<threshold)])
+    falseAlarm   = len(classifications[(classifications['real_label']==0) & (classifications['predicted_label']>threshold)])
+    scores.append(-misDetection*9-falseAlarm)
+
+plt.plot(thresholds, scores)
+optimal_theshold = thresholds[scores.index(max(scores))]
+plt.axvline(x=optimal_theshold, color='blue', linestyle=':', alpha=0.75)
+
+
+plt.title('Scores VS thresholds')
+plt.xlabel('Threshold')
+plt.ylabel('Decreased points')
+plt.figure()
+#plt.savefig('thresholds_scores.jpg', dpi=1000)
+
+
+classifications.loc[classifications['predicted_label']>optimal_theshold, 'predicted_label'] = 1
+classifications.loc[classifications['predicted_label']<1, 'predicted_label'] = 0
+
+print("False Negatives (masquraders classified as benign):", classifications[(classifications['predicted_label']==0)
+                                                                             & (classifications['real_label']==1)].shape[0]/100.0)
+print('False Positives (benign classified as masquraders):',classifications[(classifications['predicted_label']==1)
+                                                                            & (classifications['real_label']==0)].shape[0]/900.0)
+
+### Creating the submission file:
+
+challengeToFill = pd.read_csv('data/partial_labels.csv').set_index('id')
+
+for user in range(10, 40):
+    classifications = pd.DataFrame([])
+    for classifier in clfs:
+        classifications[classifier] = get_preds_for_user(normalize_df, user, clfs[classifier], pairs, 0, 150).mean(1)
+
+    classifications = 1 - classifications
+    preds = regressor.predict(classifications)
+    preds[:50] = 0
+    preds[preds > optimal_theshold] = 1
+    preds[preds < 1] = 0
+
+    challengeToFill.loc['User%d' % user] = preds
+
+
+
+submission_df = pd.DataFrame({'id': ["User{}_{}-{}".format(x, y*100, y*100+100) for x in range(10,40) for y in range(50, 150)],
+                              'label': [ challengeToFill.loc[user][chunk] for user in challengeToFill.index[10:] for chunk in challengeToFill.columns[50:] ]})
+
+submission_df.to_csv('data/prediction_result.csv', index=False)
 
 pass
