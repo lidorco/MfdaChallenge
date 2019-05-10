@@ -285,9 +285,8 @@ for user in range(10, 40):
     challengeToFill.loc['User%d' % user] = preds
 
 
-
 submission_df = pd.DataFrame({'id': ["User{}_{}-{}".format(x, y*100, y*100+100) for x in range(10,40) for y in range(50, 150)],
-                              'label': [ challengeToFill.loc[user][chunk] for user in challengeToFill.index[10:] for chunk in challengeToFill.columns[50:] ]})
+                              'label': [ int(challengeToFill.loc[user][chunk]) for user in challengeToFill.index[10:] for chunk in challengeToFill.columns[50:] ]})
 
 submission_df.to_csv('data/prediction_result.csv', index=False)
 
