@@ -68,6 +68,24 @@ df.fillna(0, inplace=True)  # in case a command did not appear in the chunk, the
 df.head()
 
 
+### Common Commands per user:
+
+avg_diffrent_commands_per_user = pd.Series()
+if ENABLE_COMMON_COMMANDS_PER_USER:
+    for user in commands.keys():
+        sum_diffrent_commands_per_user = 0
+        for i, chunk in enumerate(commands[user]):
+            sum_diffrent_commands_per_user = sum_diffrent_commands_per_user + len(set(commands[user][i]))
+
+        avg_diffrent_commands_per_user[user] = float(sum_diffrent_commands_per_user) / len(commands[user])
+
+    for user in commands.keys():
+        for i, chunk in enumerate(commands[user]):
+            # if some chunk has too high coverage
+            df.loc[(user, i), 'common_commands_per_user'] = len(set(commands[user][i])) / avg_diffrent_commands_per_user[user]
+            # if some chunk has too low coverage
+            df.loc[(user, i), 'common_commands_per_user_reverse'] = avg_diffrent_commands_per_user[user] / len(set(commands[user][i]))
+
 
 ### Usage of unknown commands:
 #### Number of appearances of unknown commands which where not appear in the benign chunks
