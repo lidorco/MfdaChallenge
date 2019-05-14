@@ -83,8 +83,8 @@ if ENABLE_COMMON_COMMANDS_PER_USER:
         for i, chunk in enumerate(commands[user]):
             # if some chunk has too high coverage
             df.loc[(user, i), 'common_commands_per_user'] = len(set(commands[user][i])) / avg_diffrent_commands_per_user[user]
-            # if some chunk has too low coverage
-            df.loc[(user, i), 'common_commands_per_user_reverse'] = avg_diffrent_commands_per_user[user] / len(set(commands[user][i]))
+            # if some chunk has too low coverage # this doesn't help
+            #df.loc[(user, i), 'common_commands_per_user_reverse'] = avg_diffrent_commands_per_user[user] / len(set(commands[user][i]))
 
 
 ### Usage of unknown commands:
