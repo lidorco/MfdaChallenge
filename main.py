@@ -1,29 +1,24 @@
+from functools import partial
 from time import time
 
-import joblib
-from imblearn.over_sampling import SMOTE
+import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from sklearn.feature_selection import SelectKBest
-import numpy as np
-from functools import partial
-
-from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn import metrics
+from sklearn.ensemble import AdaBoostClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import AdaBoostClassifier
+from sklearn.feature_selection import SelectKBest
+from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.linear_model import Ridge
 from sklearn.svm import SVC
 from xgboost import XGBClassifier
-from sklearn import metrics
-from multiprocessing import Pool
 
 plt.style.use('ggplot')
 
-from consts import BENIGN, TRAIN_USER_COUNT, USER_COUNT, TOTAL_SEGMENTS, COMPUTE_CLASSIFIER
-from globals import commands, challengeToFill, get_data_features, get_classifiers, get_now_string
-
+from consts import BENIGN, TRAIN_USER_COUNT, COMPUTE_CLASSIFIER
+from globals import commands, challengeToFill, get_data_features, get_classifiers
 
 #from build_features import df
 df = get_data_features()

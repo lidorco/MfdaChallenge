@@ -1,33 +1,12 @@
-import datetime
+from functools import reduce
 from itertools import groupby
-from functools import partial, reduce
-from time import time
-import os
-
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.linear_model import Ridge
-from sklearn import metrics
-from sklearn.svm import SVC
-
-
-from sklearn.ensemble import IsolationForest
-
-
-from xgboost import XGBClassifier
-from globals import get_now_string
 
 import pandas as pd
-import numpy as np
-
 from matplotlib import pyplot as plt
 
+from globals import get_now_string
+
 plt.style.use('ggplot')
-
-
-import preprocessing
 
 from consts import *
 from globals import commands, commands_only_impersonators_use, impersonators_commands_set
