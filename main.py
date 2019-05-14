@@ -41,7 +41,7 @@ def normalize(df):
         result[feature_name] = result[feature_name] * (Max - Min) + Min
     return result
 
-normalize_df = normalize(df)
+normalize_df = df # normalize(df)
 normalize_df.fillna(0, inplace=True)
 
 normalize_df.reset_index(level=0, inplace=True)
