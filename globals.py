@@ -7,8 +7,8 @@ from consts import *
 
 ## Load Datasets
 
-challengeToFill = pd.read_csv('data/partial_labels.csv')
-challengeToFill.head()
+partial_labels = pd.read_csv('data/partial_labels.csv')
+partial_labels.head()
 
 #  This cell loads the data for each user to dictionaries
 #  each entry of the dictionary will be a list of the chunks of each user.
@@ -38,7 +38,7 @@ masqueraders_commands_per_user = [[], [], [], [], [], [], [], [], [], []] # list
 for i in range(150):
     index = str(i*100) + '-' + str(i*100+100)
     for user_id in range(TRAIN_USER_COUNT):
-        if challengeToFill[index][user_id] == 1:
+        if partial_labels[index][user_id] == 1:
             masqueraders_commands_per_user[user_id].extend(commands[user_id][i])
 
 

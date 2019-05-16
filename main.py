@@ -18,7 +18,7 @@ from xgboost import XGBClassifier
 plt.style.use('ggplot')
 
 from consts import BENIGN, TRAIN_USER_COUNT, COMPUTE_CLASSIFIER
-from globals import commands, challengeToFill, get_data_features, get_classifiers
+from globals import commands, partial_labels, get_data_features, get_classifiers
 
 #from build_features import df
 df = get_data_features()
@@ -36,7 +36,7 @@ def normalize(df):
         result[feature_name] = result[feature_name] * (Max - Min) + Min
     return result
 
-normalize_df = df # normalize(df)
+normalize_df = df # normalize(df) # - normalize give worse results
 normalize_df.fillna(0, inplace=True)
 
 normalize_df.reset_index(level=0, inplace=True)
@@ -58,11 +58,11 @@ for i in range(BENIGN):
     for user in commands.keys():
         normalize_df.loc[(user, i), 'label'] = 0
 
-challengeToFill = challengeToFill.set_index('id')
+partial_labels = partial_labels.set_index('id')
 
 for user_i in range(TRAIN_USER_COUNT):
     user = "User%d" % user_i
-    normalize_df.loc[user, 'label'] = challengeToFill.loc[user].tolist()
+    normalize_df.loc[user, 'label'] = partial_labels.loc[user].tolist()
 
 
 
@@ -84,10 +84,10 @@ y_test = X_test.pop('label')
 masqueraders = train_idx[y_train==1]
 benign = train_idx[y_train==0]
 
-for feature in normalize_df.columns:
-    plt.figure()
-    plt.title(feature)
-    plt.hist([benign[feature],masqueraders[feature]], color=['blue','red'], normed=True)
+# for feature in normalize_df.columns:
+#     plt.figure()
+#     plt.title(feature)
+#     plt.hist([benign[feature],masqueraders[feature]], color=['blue','red'], normed=True)
 
 normalize_df.head()
 
@@ -178,7 +178,7 @@ for user in range(10):
     tmp_df = pd.DataFrame([])
     for classifier in clfs:
         tmp_df[classifier] = get_preds_for_user(normalize_df, user, clfs[classifier], pairs, 50, 150).mean(1)
-    tmp_df['label'] = challengeToFill.T['User%d' % user].tolist()[50:]
+    tmp_df['label'] = partial_labels.T['User%d' % user].tolist()[50:]
     classifications = classifications.append(tmp_df)
 
 
@@ -264,7 +264,7 @@ print('False Positives (benign classified as masquraders):',classifications[(cla
 
 ### Creating the submission file:
 
-challengeToFill = pd.read_csv('data/partial_labels.csv').set_index('id')
+partial_labels = pd.read_csv('data/partial_labels.csv').set_index('id')
 
 for user in range(10, 40):
     classifications = pd.DataFrame([])
@@ -277,11 +277,11 @@ for user in range(10, 40):
     preds[preds > optimal_theshold] = 1
     preds[preds < 1] = 0
 
-    challengeToFill.loc['User%d' % user] = preds
+    partial_labels.loc['User%d' % user] = preds
 
 
 submission_df = pd.DataFrame({'id': ["User{}_{}-{}".format(x, y*100, y*100+100) for x in range(10,40) for y in range(50, 150)],
-                              'label': [ int(challengeToFill.loc[user][chunk]) for user in challengeToFill.index[10:] for chunk in challengeToFill.columns[50:] ]})
+                              'label': [int(partial_labels.loc[user][chunk]) for user in partial_labels.index[10:] for chunk in partial_labels.columns[50:]]})
 
 submission_df.to_csv('data/prediction_result.csv', index=False)
 
